@@ -9,8 +9,8 @@
 #define SAMPLES 256    // Количество семплов для анализа
 #define SAMPLING_FREQ 44100  // Частота дискретизации
 
-byte maxValue, maxValue_f;
-float k = 0.1;
+#define LOW_PASS 30 
+#define GAIN 44000 
 
 int16_t samples[SAMPLES];
 double real[SAMPLES];
@@ -44,13 +44,13 @@ const char index_html[] PROGMEM = R"rawliteral(
   </style>
 </head>
 <body>
-  <h2>ESP Weather Station</h2>
+  <h2>ESP VOl Analyzer</h2>
   <div id="chart-temperature" class="container"></div>
 </body>
 <script>
 var chartT = new Highcharts.Chart({
   chart:{ type: 'column', renderTo : 'chart-temperature' },
-  title: { text: 'BME280 Temperature' },
+  title: { text: 'Specture' },
   series: [{
     showInLegend: false,
     data: []
@@ -109,14 +109,15 @@ String readBME280Temperature() {
   fft.ComplexToMagnitude(real, imaginary, SAMPLES);
 
   for (int pos = 0; pos < 16; pos++) {
-    str += real[posOffset[pos]];
+    int posLevel = map(real[posOffset[pos]], LOW_PASS, GAIN, 0, 15);
+    posLevel = constrain(posLevel, 0, 15);
+    str += posLevel;
     str += " ";
   }
   return String(str);
 }
 
 void setup(){
-  // Serial port for debugging purposes
   Serial.begin(115200);
 
   adc1_config_width(ADC_WIDTH_BIT_12);  // Настройка разрядности АЦП
