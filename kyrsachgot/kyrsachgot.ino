@@ -7,16 +7,16 @@
 #include <arduinoFFT.h>
 
 #define SAMPLES 256    // Количество семплов для анализа
-#define SAMPLING_FREQ 44100  // Частота дискретизации
+#define SAMPLING_FREQ 22800  // Частота дискретизации
 
 #define LOW_PASS 30 
-#define GAIN 44000 
+#define GAIN 44100
 
 int16_t samples[SAMPLES];
 double real[SAMPLES];
 double imaginary[SAMPLES];
 
-byte posOffset[16] = {2, 3, 4, 6, 8, 10, 12, 14, 16, 20, 25, 30, 35, 60, 80, 100};
+//byte posOffset[16] = {2, 3, 4, 6, 8, 10, 12, 14, 16, 20, 25, 30, 35, 60, 80, 100};
 
 arduinoFFT fft = arduinoFFT(real, imaginary, SAMPLES, SAMPLING_FREQ);
 
@@ -45,11 +45,11 @@ const char index_html[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <h2>ESP VOl Analyzer</h2>
-  <div id="chart-temperature" class="container"></div>
+  <div id="audio" class="container"></div>
 </body>
 <script>
 var chartT = new Highcharts.Chart({
-  chart:{ type: 'column', renderTo : 'chart-temperature' },
+  chart:{ type: 'column', renderTo : 'audio' },
   title: { text: 'Specture' },
   series: [{
     showInLegend: false,
@@ -76,15 +76,15 @@ setInterval(function ( ) {
       var siries = [];
       var arrayOfStrings = this.responseText;
       var data = arrayOfStrings.split(' ');
-      for(var i = 0; i < 16; i++){
-        var x = i,
+      for(var i = 0; i < 128; i++){
+        var x = i* 89,
             y = parseFloat(data[i]);
         siries.push([x,y]);
       }
       chartT.series[0].setData(siries);
     }
   };
-  xhttp.open("GET", "/temperature", true);
+  xhttp.open("GET", "/audio", true);
   xhttp.send();
 }, 100 ) ;
 
@@ -94,22 +94,21 @@ setInterval(function ( ) {
 
 AsyncWebServer server(80);
 
-String readBME280Temperature() {
+String analyzeAudio() {
   String str = "";
 
   for (int i = 0; i < SAMPLES; i++) {
     real[i] = adc1_get_raw(ADC1_CHANNEL_6);
     imaginary[i] = 0;
-    delayMicroseconds(100);  // Задержка между считываниями значений
   }
 
   // Применение FFT к буферу
   fft.Windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
-  fft.Compute(real, imaginary, SAMPLES, FFT_FORWARD);
-  fft.ComplexToMagnitude(real, imaginary, SAMPLES);
+  fft.Compute(FFT_FORWARD);
+  fft.ComplexToMagnitude();
 
-  for (int pos = 0; pos < 16; pos++) {
-    int posLevel = map(real[posOffset[pos]], LOW_PASS, GAIN, 0, 15);
+  for (int pos = 0; pos < SAMPLES/2; pos++) {
+    int posLevel = map(real[pos], LOW_PASS, GAIN, 0, 15);
     posLevel = constrain(posLevel, 0, 15);
     str += posLevel;
     str += " ";
@@ -135,8 +134,8 @@ void setup(){
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/html", index_html);
   });
-  server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/plain", readBME280Temperature().c_str());
+  server.on("/audio", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", analyzeAudio().c_str());
   });
 
   server.begin();
